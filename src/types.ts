@@ -175,6 +175,7 @@ export interface FileOperationPayload {
   editStrategy?: EditStrategy;
   sectionHeading?: string;
   fallbackNote?: string;
+  userRequestedText?: string;
 }
 
 export interface FileOperationPreview {

@@ -10,7 +10,6 @@ import { analyzeStructure } from '../src/analyzer/structuralAnalyzer.js';
 import { scanProject } from '../src/scanner/projectScanner.js';
 import type { AiConfig } from '../src/security/pathGuard.js';
 import { validateStructuredAnswer } from '../src/prompts/askPrompt.js';
-import { formatAskMetrics } from '../src/agent/askService.js';
 
 const FIXTURE = path.join(import.meta.dirname, 'fixtures', 'minimal-project');
 
@@ -94,60 +93,54 @@ describe('contextSelector', () => {
 });
 
 describe('askService metrics', () => {
-  it('collects performance metrics', () => {
-    const metrics = formatAskMetrics({
-      contextChars: 1800,
-      systemPromptChars: 400,
-      userPromptChars: 2000,
-      estimatedPromptChars: 2400,
-      answerChars: 320,
-      totalMs: 3500,
+  it('collects performance metrics', async () => {
+    const { formatAgentMetrics } = await import('../src/agent/queryEngine.js');
+    const metrics = formatAgentMetrics({
+      turnsUsed: 1,
+      maxTurns: 3,
+      toolsExecuted: 2,
+      readToolsAutoRun: 2,
+      pendingOperationsCreated: 0,
+      evidenceSections: ['summary', 'stack'],
       provider: 'ollama',
       model: 'qwen2.5-coder:7b',
-      intents: ['overview'],
-      sectionsIncluded: ['summary', 'stack'],
-      truncated: false,
+      totalMs: 3500,
     });
-    expect(metrics).toContain('1800 chars');
+    expect(metrics).toContain('Turns: 1/3');
+    expect(metrics).toContain('Tools: 2');
     expect(metrics).toContain('3.5s');
     expect(metrics).toContain('qwen2.5-coder:7b');
   });
 
   it('validates structured answer format', () => {
-    const good = `## Direct Answer\nIt is an Express app.\n## Evidence Files\n- src/index.ts\n## Risks\nNone\n## Next Action\nRun tests`;
+    const good = `## Direct Answer\nIt is an Express app.\n## Evidence\n- src/index.ts\n## Risks\nNone\n## Next Action\nRun tests`;
     expect(validateStructuredAnswer(good)).toBe(true);
     expect(validateStructuredAnswer('plain text')).toBe(false);
   });
 });
 
 describe('askService', () => {
-  it('answers using mocked Ollama provider with metrics', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      if (url.endsWith('/api/tags')) {
-        return new Response(JSON.stringify({ models: [] }), { status: 200 });
-      }
-      return new Response(
-        JSON.stringify({
-          model: 'qwen2.5-coder:7b',
-          message: {
-            content:
-              '## Direct Answer\nMinimal Express fixture.\n## Evidence Files\n- src/index.ts\n## Risks\nNone\n## Next Action\nRun npm test',
-          },
-        }),
-        { status: 200 },
-      );
-    });
+  it('answers using the unified agent query pipeline', async () => {
+    const chatFn = vi.fn(async () => ({
+      content: JSON.stringify({
+        action: 'final',
+        answer:
+          '## Direct Answer\nMinimal Express fixture.\n## Evidence\n- src/index.ts\n## Risks\nNone\n## Next Action\nRun npm test',
+      }),
+      model: 'mock',
+      provider: 'mock',
+    }));
 
     const { askProject } = await import('../src/agent/askService.js');
     const result = await askProject({
       projectPath: FIXTURE,
       question: 'What does this project do?',
-      fetchImpl,
+      chatFn,
     });
 
     expect(result.success).toBe(true);
-    expect(result.metrics?.contextChars).toBeLessThanOrEqual(testAiConfig.maxContextChars + 500);
-    expect(result.metrics?.estimatedPromptChars).toBeGreaterThan(0);
-    expect(result.metrics?.totalMs).toBeGreaterThanOrEqual(0);
+    expect(validateStructuredAnswer(result.answer!)).toBe(true);
+    expect(result.metrics?.toolsExecuted).toBeGreaterThan(0);
+    expect(result.metrics?.turnsUsed).toBeGreaterThan(0);
   });
 });

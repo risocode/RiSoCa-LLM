@@ -254,6 +254,24 @@ export function buildOptimizedPromptContext(
       '## Graph stats',
       `Files: ${map.stats.fileCount}, Symbols: ${map.stats.symbolCount}, Depth: ${map.stats.depth}`,
     );
+    if (structure.highFanIn.length > 0) {
+      parts.push(
+        '',
+        '## High fan-in (many files depend on this file — coupling risk)',
+        ...structure.highFanIn.slice(0, 5).map((m) => `- ${m.file} (fan-in ${m.fanIn})`),
+      );
+    }
+    if (structure.highFanOut.length > 0) {
+      parts.push(
+        '',
+        '## High fan-out (this file depends on many files — coupling risk)',
+        ...structure.highFanOut.slice(0, 5).map((m) => `- ${m.file} (fan-out ${m.fanOut})`),
+      );
+    }
+    parts.push(
+      '',
+      'Graph note: fan-in/fan-out indicate coupling/coordination complexity, not duplication or over-engineering.',
+    );
     sectionsIncluded.push('graph');
   }
 

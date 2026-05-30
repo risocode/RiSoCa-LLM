@@ -154,7 +154,9 @@ export async function startWorkflow(options: StartWorkflowOptions): Promise<Work
       analysisSummary: buildAnalysisSummary(structure, scan),
     });
     let plan = normalizeWorkflowPlanValidation(rawPlan, options.projectPath);
-    const strategyResult = normalizeWorkflowPlanEditStrategies(plan, validation.absolutePath);
+    const strategyResult = normalizeWorkflowPlanEditStrategies(plan, validation.absolutePath, {
+      userRequest: options.userRequest,
+    });
     if (strategyResult.strategyError) {
       updateWorkflow(db, workflowId, {
         status: 'failed',
@@ -218,6 +220,7 @@ export async function startWorkflow(options: StartWorkflowOptions): Promise<Work
         editStrategy: edit.strategy ?? 'exact',
         sectionHeading: edit.sectionHeading,
         fallbackNote: edit.warning,
+        userRequestedText: edit.userRequestedText,
       });
       if (!result.success || !result.operationId) {
         updateWorkflow(db, workflowId, {
@@ -242,6 +245,7 @@ export async function startWorkflow(options: StartWorkflowOptions): Promise<Work
           summary: edit.summary,
           strategy: edit.strategy ?? 'exact',
           warning: edit.warning,
+          userRequestedText: edit.userRequestedText,
         },
         linkedOperationId: result.operationId,
         result: edit.warning ? { warning: edit.warning } : null,

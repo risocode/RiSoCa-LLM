@@ -2,6 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readFileSafe } from '../utils/fileUtils.js';
 import type { EditStrategy } from '../types.js';
+import {
+  extractUserSpecifiedText,
+  formatMarkdownQualityError,
+  getProjectDisplayNames,
+  normalizeMarkdownEditContent,
+} from './markdownEditQuality.js';
 import type { WorkflowPlan, WorkflowPlanEdit } from './workflowTypes.js';
 
 export interface ResolvedPlanEdit extends WorkflowPlanEdit {
@@ -228,9 +234,51 @@ function pathExists(fullPath: string): boolean {
   return fs.existsSync(fullPath);
 }
 
+function applyMarkdownQuality(
+  edit: ResolvedPlanEdit,
+  projectRoot: string,
+  userRequest?: string,
+): { success: true; edit: ResolvedPlanEdit } | { success: false; error: string } {
+  if (!isDocumentationFile(edit.file)) {
+    return { success: true, edit };
+  }
+
+  const projectNames = getProjectDisplayNames(projectRoot);
+  const userText = userRequest ? extractUserSpecifiedText(userRequest) : null;
+  const fieldsToCheck: Array<{ key: 'replace' | 'search'; value: string }> = [
+    { key: 'replace', value: edit.replace },
+  ];
+
+  if (edit.strategy === 'exact' && edit.search && !edit.search.includes('\n') && edit.search.length < 200) {
+    fieldsToCheck.push({ key: 'search', value: edit.search });
+  }
+
+  let nextEdit = { ...edit };
+
+  for (const field of fieldsToCheck) {
+    const normalized = normalizeMarkdownEditContent(field.value, {
+      userRequest,
+      userText,
+      projectNames,
+      strategy: edit.strategy,
+    });
+    if (normalized.error) {
+      return { success: false, error: formatMarkdownQualityError(edit.file, [normalized.error]) };
+    }
+    nextEdit = { ...nextEdit, [field.key]: normalized.content };
+  }
+
+  if (userText) {
+    nextEdit.userRequestedText = userText;
+  }
+
+  return { success: true, edit: nextEdit };
+}
+
 export function normalizeWorkflowPlanEditStrategies(
   plan: WorkflowPlan,
   projectRoot: string,
+  options?: { userRequest?: string },
 ): NormalizeEditStrategiesResult {
   const resolvedEdits: WorkflowPlanEdit[] = [];
   const warnings: string[] = [];
@@ -241,8 +289,13 @@ export function normalizeWorkflowPlanEditStrategies(
       return { plan, warnings, strategyError: resolved.error };
     }
 
-    resolvedEdits.push(resolved.edit);
-    if (resolved.edit.warning) warnings.push(resolved.edit.warning);
+    const quality = applyMarkdownQuality(resolved.edit, projectRoot, options?.userRequest);
+    if (!quality.success) {
+      return { plan, warnings, strategyError: quality.error };
+    }
+
+    resolvedEdits.push(quality.edit);
+    if (quality.edit.warning) warnings.push(quality.edit.warning);
   }
 
   const notes = [plan.notes, ...warnings].filter(Boolean).join('\n');

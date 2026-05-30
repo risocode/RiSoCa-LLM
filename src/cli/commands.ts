@@ -21,6 +21,10 @@ import {
   getPendingOperations,
 } from '../security/approval.js';
 import {
+  formatOperationPreviewDetail,
+  previewOperationById,
+} from '../security/operationPreview.js';
+import {
   approveAnyOperation,
   getPendingCommandOperations,
   rejectAnyOperation,
@@ -41,7 +45,7 @@ import {
   runFixWorkflow,
   runRefactorWorkflow,
 } from '../workflows/workflowEngine.js';
-import { askProject, formatAskMetrics } from '../agent/askService.js';
+import { formatAgentMetrics, runAgentQuery } from '../agent/queryEngine.js';
 
 function printList(label: string, items: string[], empty = 'none'): void {
   console.log(`${label}:`);
@@ -287,6 +291,16 @@ function runPending(): void {
   console.log(formatPendingOperationsList(getPendingOperations(), getPendingCommandOperations()));
 }
 
+function runPreviewOperation(operationId: string): void {
+  const result = previewOperationById(operationId);
+  if (!result.success) {
+    logger.error(result.error ?? 'Preview failed');
+    process.exitCode = 1;
+    return;
+  }
+  console.log(formatOperationPreviewDetail(result.preview));
+}
+
 function runCmd(projectPath: string, command: string): void {
   const validation = validateScanPath(projectPath);
   if (!validation.valid) {
@@ -356,25 +370,30 @@ async function runLocalStatus(projectPath: string): Promise<void> {
   runPending();
 }
 
-async function runAsk(projectPath: string, question: string): Promise<void> {
-  logger.info('Building optimized project context...');
-  const result = await askProject({ projectPath, question });
-  if (!result.success || !result.response) {
-    console.error(result.error ?? 'Ask failed');
+async function runProjectQuery(projectPath: string, question: string): Promise<void> {
+  logger.info('Running evidence-based query with tool loop...');
+  const result = await runAgentQuery({ projectPath, question });
+  if (!result.success || !result.answer) {
+    console.error(result.error ?? 'Query failed');
     process.exitCode = 1;
     return;
   }
 
   console.log('');
   if (result.metrics) {
-    console.log(formatAskMetrics(result.metrics));
-    console.log('────────────────────────────────────────');
-  } else {
-    console.log(`Provider: ${result.response.provider} | Model: ${result.response.model}`);
+    console.log(formatAgentMetrics(result.metrics));
     console.log('────────────────────────────────────────');
   }
-  console.log(result.response.content);
+  console.log(result.answer);
   console.log('');
+}
+
+async function runAgent(projectPath: string, question: string): Promise<void> {
+  await runProjectQuery(projectPath, question);
+}
+
+async function runAsk(projectPath: string, question: string): Promise<void> {
+  await runProjectQuery(projectPath, question);
 }
 
 async function runFix(projectPath: string, issue: string): Promise<void> {
@@ -527,6 +546,14 @@ export function createCli(): Command {
     });
 
   program
+    .command('preview-operation')
+    .description('Show before/after preview and unified diff for a pending file operation')
+    .argument('<operationId>', 'Operation ID')
+    .action((operationId: string) => {
+      runPreviewOperation(operationId);
+    });
+
+  program
     .command('doctor')
     .description('Check local runtime health (Node, SQLite, Ollama, git)')
     .argument('[path]', 'Project directory to inspect', '.')
@@ -569,8 +596,17 @@ export function createCli(): Command {
     });
 
   program
+    .command('agent')
+    .description('Evidence-based agent query with tool loop (read-only auto-run)')
+    .argument('<path>', 'Project directory')
+    .argument('<question...>', 'Question for the agent')
+    .action(async (projectPath: string, questionParts: string[]) => {
+      await runAgent(projectPath, questionParts.join(' '));
+    });
+
+  program
     .command('ask')
-    .description('Ask a question about a project using local Ollama')
+    .description('Ask a question about a project (evidence-based tool loop)')
     .argument('<path>', 'Project directory')
     .argument('<question...>', 'Question to ask')
     .action(async (projectPath: string, questionParts: string[]) => {

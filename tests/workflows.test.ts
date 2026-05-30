@@ -299,6 +299,33 @@ describe('workflow engine', () => {
     expect(fs.readFileSync(readme, 'utf-8')).toContain('Old setup text');
   });
 
+  it('normalizes bad README append to exact user-requested clean line', async () => {
+    const readme = path.join(projectRoot, 'README.md');
+    fs.writeFileSync(readme, '# Title\n\n## Setup\n\nExisting content.\n');
+    const result = await runFixWorkflow(projectRoot, 'Add RiSoCa POGI as a clean final markdown line in README.md', {
+      planGenerator: mockPlanner({
+        diagnosis: 'Append clean line',
+        targetFiles: ['README.md'],
+        edits: [
+          {
+            file: 'README.md',
+            search: 'missing text',
+            replace: 'RiSoCa-AI-Agent POGI\\n',
+            summary: 'append pogi',
+          },
+        ],
+        validationCommands: ['npm test'],
+      }),
+    });
+    expect(result.success).toBe(true);
+    expect(result.workflow?.status).toBe('awaiting_approval');
+    const editStep = result.workflow!.steps.find((s) => s.kind === 'edit_file');
+    expect(editStep?.payload.replace).toBe('RiSoCa POGI');
+    expect(editStep?.payload.userRequestedText).toBe('RiSoCa POGI');
+    expect(String(editStep?.payload.replace)).not.toContain('\\n');
+    expect(fs.readFileSync(readme, 'utf-8')).not.toContain('RiSoCa POGI');
+  });
+
   it('fails safely when source file search is invalid', async () => {
     const result = await runFixWorkflow(projectRoot, 'fix app constant', {
       planGenerator: mockPlanner({

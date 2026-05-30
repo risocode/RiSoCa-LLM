@@ -25,6 +25,7 @@
     "git:status": "tsx src/main.ts git-status",
     "git:diff": "tsx src/main.ts git-diff",
     "pending": "tsx src/main.ts pending",
+    "preview-operation": "tsx src/main.ts preview-operation",
     "local:status": "tsx src/main.ts local-status",
     "local:ask": "tsx src/main.ts ask . \"What does this project do?\"",
     "fix": "tsx src/main.ts fix",
@@ -33,6 +34,7 @@
     "workflow": "tsx src/main.ts workflow",
     "cancel-workflow": "tsx src/main.ts cancel-workflow",
     "ask": "tsx src/main.ts ask",
+    "agent": "tsx src/main.ts agent",
     "test": "vitest run",
     "build": "tsc"
   },

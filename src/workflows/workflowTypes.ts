@@ -33,6 +33,7 @@ export interface WorkflowPlanEdit {
   strategy?: EditStrategy;
   sectionHeading?: string;
   warning?: string;
+  userRequestedText?: string;
 }
 
 export interface WorkflowPlan {

@@ -19,8 +19,13 @@ import { appendAuditEvent } from './auditLog.js';
 import { createSnapshotFile, restoreSnapshotFile } from './snapshots.js';
 import { assertWriteAllowed, validateOperationType, validateWritePath } from './writeGuard.js';
 import { validateScanPath } from './pathGuard.js';
-import { applyEditStrategy } from '../workflows/editStrategy.js';
+import { applyEditStrategy, isDocumentationFile } from '../workflows/editStrategy.js';
 import type { EditStrategy } from '../types.js';
+import {
+  formatMarkdownQualityError,
+  getProjectDisplayNames,
+  validateMarkdownFileEdit,
+} from '../workflows/markdownEditQuality.js';
 
 export interface CreateOperationInput {
   projectRoot: string;
@@ -34,6 +39,40 @@ export interface ApproveResult {
   success: boolean;
   operation?: FileOperation;
   error?: string;
+}
+
+function validateMarkdownOperationContent(
+  projectRoot: string,
+  targetPath: string,
+  content: string,
+  payload: FileOperation['payload'],
+): void {
+  if (!isDocumentationFile(targetPath)) return;
+
+  const result = validateMarkdownFileEdit(targetPath, content, {
+    userText: payload.userRequestedText,
+    projectNames: getProjectDisplayNames(projectRoot),
+    strategy: payload.editStrategy,
+  });
+
+  if (!result.valid) {
+    throw new Error(formatMarkdownQualityError(targetPath, result.errors));
+  }
+}
+
+function validateMarkdownOperationResult(
+  projectRoot: string,
+  targetPath: string,
+  before: string,
+  after: string,
+  payload: FileOperation['payload'],
+): void {
+  if (!isDocumentationFile(targetPath)) return;
+
+  const added = after.startsWith(before) ? after.slice(before.length).trim() : after.trim();
+  if (!added) return;
+
+  validateMarkdownOperationContent(projectRoot, targetPath, added, payload);
 }
 
 function snippet(text: string, max = 120): string {
@@ -120,11 +159,27 @@ export function createPendingOperation(input: CreateOperationInput): FileOperati
   );
   if (!guard.allowed) throw new Error(guard.error ?? 'Write blocked');
 
+  if (input.operationType === 'write_file') {
+    validateMarkdownOperationContent(
+      validation.absolutePath,
+      guard.normalizedPath,
+      input.payload.content ?? '',
+      input.payload,
+    );
+  }
+
   if (input.operationType === 'edit_file') {
     const fullPath = path.join(validation.absolutePath, guard.normalizedPath);
     if (!fs.existsSync(fullPath)) throw new Error('Edit target does not exist');
     const current = fs.readFileSync(fullPath, 'utf-8');
     const strategy = input.payload.editStrategy ?? 'exact';
+
+    validateMarkdownOperationContent(
+      validation.absolutePath,
+      guard.normalizedPath,
+      input.payload.replace ?? '',
+      input.payload,
+    );
 
     if (strategy === 'exact' && !current.includes(input.payload.search ?? '')) {
       throw new Error('Search string not found');
@@ -145,6 +200,14 @@ export function createPendingOperation(input: CreateOperationInput): FileOperati
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Edit validation failed');
     }
+
+    validateMarkdownOperationResult(
+      validation.absolutePath,
+      guard.normalizedPath,
+      current,
+      edited,
+      input.payload,
+    );
 
     const contentCheck = assertWriteAllowed(validation.absolutePath, guard.normalizedPath, edited);
     if (!contentCheck.allowed) throw new Error(contentCheck.error ?? 'Edited content blocked');
@@ -248,6 +311,36 @@ export function approveOperation(operationId: string): ApproveResult {
 
   const guard = assertWriteAllowed(projectRoot, operation.targetPath, operation.payload.content);
   if (!guard.allowed) return { success: false, error: guard.error };
+
+  try {
+    if (operation.operationType === 'write_file') {
+      validateMarkdownOperationContent(
+        projectRoot,
+        operation.targetPath,
+        operation.payload.content ?? '',
+        operation.payload,
+      );
+    }
+
+    if (operation.operationType === 'edit_file') {
+      const current = fs.readFileSync(path.join(projectRoot, operation.targetPath), 'utf-8');
+      validateMarkdownOperationContent(
+        projectRoot,
+        operation.targetPath,
+        operation.payload.replace ?? '',
+        operation.payload,
+      );
+      const next = applyEditStrategy(current, {
+        search: operation.payload.search,
+        replace: operation.payload.replace,
+        editStrategy: operation.payload.editStrategy,
+        sectionHeading: operation.payload.sectionHeading,
+      });
+      validateMarkdownOperationResult(projectRoot, operation.targetPath, current, next, operation.payload);
+    }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Markdown validation failed' };
+  }
 
   appendAuditEvent({
     event: 'operation_approved',
