@@ -5,6 +5,10 @@ import { initializeSchema } from './schema.js';
 
 let dbInstance: Database.Database | null = null;
 
+export function setDatabaseInstance(db: Database.Database | null): void {
+  dbInstance = db;
+}
+
 export function getDatabase(): Database.Database {
   if (dbInstance) return dbInstance;
 

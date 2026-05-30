@@ -5,9 +5,34 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
+    "postinstall": "node scripts/rebuild-native.mjs",
+    "preflight": "tsx src/preflight-cli.ts",
+    "doctor": "tsx src/main.ts doctor",
+    "check": "npm run preflight && npm test && npm run build",
+    "rebuild:native": "node scripts/rebuild-native.mjs",
+    "setup": "npm install && npm run preflight",
     "dev": "tsx src/main.ts",
     "scan": "tsx src/main.ts scan",
     "analyze": "tsx src/main.ts analyze",
+    "write": "tsx src/main.ts write",
+    "edit": "tsx src/main.ts edit",
+    "delete": "tsx src/main.ts delete",
+    "approve": "tsx src/main.ts approve",
+    "reject": "tsx src/main.ts reject",
+    "snapshots": "tsx src/main.ts snapshots",
+    "restore": "tsx src/main.ts restore",
+    "cmd": "tsx src/main.ts cmd",
+    "git:status": "tsx src/main.ts git-status",
+    "git:diff": "tsx src/main.ts git-diff",
+    "pending": "tsx src/main.ts pending",
+    "local:status": "tsx src/main.ts local-status",
+    "local:ask": "tsx src/main.ts ask . \"What does this project do?\"",
+    "fix": "tsx src/main.ts fix",
+    "refactor": "tsx src/main.ts refactor",
+    "workflows": "tsx src/main.ts workflows",
+    "workflow": "tsx src/main.ts workflow",
+    "cancel-workflow": "tsx src/main.ts cancel-workflow",
+    "ask": "tsx src/main.ts ask",
     "test": "vitest run",
     "build": "tsc"
   },
@@ -15,7 +40,7 @@
   "license": "UNLICENSED",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22.0.0 <23.0.0"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",

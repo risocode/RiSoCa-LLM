@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createIgnoreFilter, isEnvFile, shouldIgnore } from '../src/scanner/ignoreRules.js';
+import { isSensitivePath } from '../src/security/pathGuard.js';
 
 const FIXTURE = path.join(import.meta.dirname, 'fixtures', 'minimal-project');
 
@@ -15,6 +16,7 @@ describe('ignoreRules', () => {
     expect(isEnvFile('.env')).toBe(true);
     expect(isEnvFile('.env.local')).toBe(true);
     expect(isEnvFile('src/config.ts')).toBe(false);
+    expect(isSensitivePath('.env')).toBe(true);
   });
 
   it('allows source files', () => {

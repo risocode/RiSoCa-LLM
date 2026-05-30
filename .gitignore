@@ -3,5 +3,7 @@ dist/
 data/*.db
 data/project-map.json
 data/reports/
+data/snapshots/
+data/audit.log.jsonl
 *.log
 .DS_Store

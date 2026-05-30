@@ -1,4 +1,26 @@
 {
   "allowedRoots": [],
-  "extraIgnores": []
+  "extraIgnores": [],
+  "maxFileSizeBytes": 1048576,
+  "maxIndexedFiles": 10000,
+  "commandTimeoutMs": 120000,
+  "ai": {
+    "provider": "ollama",
+    "model": "qwen2.5-coder:3b",
+    "fallbackModel": "qwen2.5-coder:3b",
+    "availableModels": ["qwen2.5-coder:7b", "qwen2.5-coder:3b", "qwen3.6"],
+    "baseUrl": "http://localhost:11434",
+    "timeoutMs": 120000,
+    "maxContextChars": 12000,
+    "maxOutputChars": 2000,
+    "contextLimits": {
+      "maxRankedFiles": 12,
+      "maxSymbols": 15,
+      "maxRoutes": 8,
+      "maxImportEdges": 12,
+      "maxRisks": 6,
+      "maxDependencies": 8,
+      "maxCircularImports": 3
+    }
+  }
 }

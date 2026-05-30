@@ -1,3 +1,5 @@
+import type { AiConfig } from '../security/pathGuard.js';
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -6,12 +8,13 @@ export interface ChatMessage {
 export interface ChatRequest {
   messages: ChatMessage[];
   model?: string;
-  maxTokens?: number;
+  maxOutputChars?: number;
 }
 
 export interface ChatResponse {
   content: string;
   model: string;
+  provider: string;
   tokensUsed?: number;
 }
 
@@ -19,22 +22,22 @@ export interface AIProvider {
   id: string;
   name: string;
   chat(request: ChatRequest): Promise<ChatResponse>;
-  countTokens?(text: string): number;
 }
 
-export class StubAIProvider implements AIProvider {
-  id = 'stub';
-  name = 'Stub Provider (Phase 1)';
+export interface ProviderOptions {
+  config: AiConfig;
+  fetchImpl?: typeof fetch;
+}
 
-  async chat(request: ChatRequest): Promise<ChatResponse> {
-    return {
-      content: `[Stub] Received ${request.messages.length} message(s). AI integration planned for Phase 4.`,
-      model: 'stub',
-      tokensUsed: 0,
-    };
+export class ProviderError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+  ) {
+    super(message);
+    this.name = 'ProviderError';
   }
 }
 
-export function createDefaultProvider(): AIProvider {
-  return new StubAIProvider();
-}
+export const OLLAMA_NOT_RUNNING_MESSAGE =
+  'Ollama is not running. Start it with `ollama serve` and install a model with `ollama pull qwen2.5-coder:7b`.';

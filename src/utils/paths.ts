@@ -38,3 +38,15 @@ export function getDbPath(): string {
 export function getProjectMapPath(): string {
   return path.join(getDataDir(), 'project-map.json');
 }
+
+export function getSnapshotsDir(): string {
+  return path.join(getDataDir(), 'snapshots');
+}
+
+export function getAuditLogPath(): string {
+  return path.join(getDataDir(), 'audit.log.jsonl');
+}
+
+export function resolveProjectFile(root: string, relativePath: string): string {
+  return path.resolve(root, relativePath);
+}

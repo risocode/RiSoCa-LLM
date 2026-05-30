@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Ignore } from 'ignore';
 import type { DependencyEntry, FileEntry } from '../types.js';
 import { isSensitivePath } from '../security/pathGuard.js';
-import { countLines, hashContent } from '../utils/fileUtils.js';
+import { countLines, hashContent, readFileSafe, shouldSkipIndexing } from '../utils/fileUtils.js';
 import { detectLanguage } from '../scanner/stackDetector.js';
 import { isEnvFile } from '../scanner/ignoreRules.js';
 
@@ -49,7 +49,17 @@ export function indexFiles(input: FileIndexInput): { files: FileEntry[]; skipped
     const fullPath = path.join(rootPath, normalized);
     try {
       const stat = fs.statSync(fullPath);
-      const content = fs.readFileSync(fullPath, 'utf-8');
+      if (shouldSkipIndexing(normalized, stat.size)) {
+        skippedCount++;
+        continue;
+      }
+
+      const content = readFileSafe(rootPath, normalized);
+      if (content === null) {
+        skippedCount++;
+        continue;
+      }
+
       files.push({
         path: normalized,
         language: detectLanguage(normalized),

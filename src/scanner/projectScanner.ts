@@ -4,7 +4,8 @@ import path from 'node:path';
 import fg from 'fast-glob';
 import type { ProjectMap, ScanResult } from '../types.js';
 import { buildProjectMap } from '../indexer/projectMap.js';
-import { countLines, hashContent } from '../utils/fileUtils.js';
+import { countLines, isBinaryExtension, readFileSafe } from '../utils/fileUtils.js';
+import { isSensitivePath, loadConfig } from '../security/pathGuard.js';
 import { detectFrameworks } from './frameworkDetector.js';
 import { createIgnoreFilter, isEnvFile } from './ignoreRules.js';
 import { detectLanguage, detectStack, parsePackageJsonDependencies } from './stackDetector.js';
@@ -103,13 +104,36 @@ export async function scanProject(rootPath: string): Promise<ScanPipelineResult>
 
   let skippedCount = 0;
   const indexedPaths: string[] = [];
+  const { maxIndexedFiles, maxFileSizeBytes } = loadConfig();
 
   for (const rel of allPaths) {
     const normalized = rel.replace(/\\/g, '/');
-    if (isEnvFile(normalized) || ig.ignores(normalized)) {
+    if (
+      isEnvFile(normalized) ||
+      isSensitivePath(normalized) ||
+      isBinaryExtension(normalized) ||
+      ig.ignores(normalized)
+    ) {
       skippedCount++;
       continue;
     }
+
+    try {
+      const stat = fs.statSync(path.join(root, normalized));
+      if (stat.size > maxFileSizeBytes) {
+        skippedCount++;
+        continue;
+      }
+    } catch {
+      skippedCount++;
+      continue;
+    }
+
+    if (indexedPaths.length >= maxIndexedFiles) {
+      skippedCount++;
+      continue;
+    }
+
     indexedPaths.push(normalized);
   }
 
@@ -119,12 +143,8 @@ export async function scanProject(rootPath: string): Promise<ScanPipelineResult>
   for (const rel of indexedPaths) {
     languages.add(detectLanguage(rel));
     if (CODE_EXTENSIONS.has(path.extname(rel).toLowerCase())) {
-      try {
-        const content = fs.readFileSync(path.join(root, rel), 'utf-8');
-        fileMeta.push({ path: rel, lineCount: countLines(content) });
-      } catch {
-        fileMeta.push({ path: rel, lineCount: 0 });
-      }
+      const content = readFileSafe(root, rel);
+      fileMeta.push({ path: rel, lineCount: content ? countLines(content) : 0 });
     }
   }
 
@@ -171,5 +191,5 @@ export async function scanProject(rootPath: string): Promise<ScanPipelineResult>
 }
 
 export function fingerprintFromScan(scan: ScanResult): string {
-  return scan.fingerprint || hashContent(`${scan.rootPath}:${scan.fileCount}:${scan.scannedAt}`);
+  return scan.fingerprint;
 }

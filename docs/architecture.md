@@ -25,7 +25,14 @@ CLI → pathGuard → scanner → indexer → SQLite + project-map.json → heal
 - `data/risoca.db` — projects, scans, indexed files, symbols, import edges
 - `data/project-map.json` — latest unified project map
 
-## Deferred (later phases)
+## Security (Phase 1)
+
+- Path validation and traversal blocking
+- Sensitive file blocking (`.env*`, keys, credentials, `.ssh/`)
+- Binary and oversized file skipping (configurable via `config/default.json`)
+- Agent writes restricted to `data/` only
+- Read-only: never modifies scanned projects
+
 
 - File editing, terminal, git tools (Phase 3–5)
 - AI provider integration (Phase 4)

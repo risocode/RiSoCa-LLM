@@ -15,7 +15,7 @@ export interface BuildProjectMapInput {
 export function buildProjectMap(input: BuildProjectMapInput): ProjectMap {
   const { rootPath, scannedAt, filePaths, dependencies, ig } = input;
 
-  const { files, skippedCount } = indexFiles({ rootPath, filePaths, ig });
+  const { files } = indexFiles({ rootPath, filePaths, ig });
   const filePathList = files.map((f) => f.path);
   const symbolResult = indexSymbols(rootPath, filePathList);
   const { imports, depth } = buildDependencyGraph(rootPath, filePathList);
@@ -39,7 +39,6 @@ export function buildProjectMap(input: BuildProjectMapInput): ProjectMap {
       symbolCount: symbolResult.symbols.length,
       routeCount: symbolResult.routes.length,
       depth,
-      skippedCount,
     },
   };
 }
